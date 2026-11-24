@@ -349,6 +349,7 @@ h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
     return cv.toDataURL("image/jpeg", 0.9);
   }
   const today = () => { const d=new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`; };
+  const stamp = () => { const d=new Date(), p=n=>String(n).padStart(2,"0"); return `${today()}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; };
   async function save(blob, filename){
     let dl = null;
     try { if(window.claude && window.claude.use) dl = await window.claude.use("downloads"); } catch(_){}
@@ -394,7 +395,7 @@ h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
       say("m2","PPT 파일로 묶는 중…");
       const raw = await pptx.write({ outputType:"arraybuffer" });
       const blob = new Blob([raw], { type:"application/vnd.openxmlformats-officedocument.presentationml.presentation" });
-      const name = `사진모음_${today()}.pptx`;
+      const name = `${stamp()}_작업사진모음.pptx`;
       say("m2", `${pages}장짜리 PPT (${(blob.size/1048576).toFixed(1)}MB)를 만들었어요. 저장 창에서 확인해 주세요.`);
       await save(blob, name);
       say("m2", `저장했어요 · ${name}`);
