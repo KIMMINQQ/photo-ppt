@@ -392,7 +392,8 @@ h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
         }
       }
       say("m2","PPT 파일로 묶는 중…");
-      const blob = await pptx.write({ outputType:"blob" });
+      const raw = await pptx.write({ outputType:"arraybuffer" });
+      const blob = new Blob([raw], { type:"application/vnd.openxmlformats-officedocument.presentationml.presentation" });
       const name = `사진모음_${today()}.pptx`;
       say("m2", `${pages}장짜리 PPT (${(blob.size/1048576).toFixed(1)}MB)를 만들었어요. 저장 창에서 확인해 주세요.`);
       await save(blob, name);
