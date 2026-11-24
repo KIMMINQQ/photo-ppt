@@ -73,6 +73,11 @@ h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
 .empty{padding:40px 16px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:16px;background:var(--card)}
 .foot{font-size:12px;color:var(--muted)}
 [hidden]{display:none!important}
+.inapp{background:#FFF4E5;color:#7A3E00;border:1px solid #F5C98B;border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.inapp b{font-size:15px}.inapp p{margin:0;font-size:14px;line-height:1.5}
+.inapp .row{display:flex;gap:8px;flex-wrap:wrap}
+.inapp button,.inapp a{min-height:44px;padding:0 16px;border-radius:10px;border:0;background:#2F6BFF;color:#fff;font-size:15px;font-weight:700;display:inline-flex;align-items:center;text-decoration:none;cursor:pointer}
+.inapp .ghost{background:#fff;color:#7A3E00;border:1px solid #F5C98B}
 
 @media (max-width:860px){
   .layout{flex-direction:column;align-items:stretch}
@@ -85,6 +90,11 @@ h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
 </style>
 
 <div class="wrap">
+  <div class="inapp" id="inapp" hidden>
+    <b id="inappT">이 화면에서는 PPT 저장이 안 돼요</b>
+    <p id="inappP">카카오톡 같은 앱 안의 브라우저는 파일 저장을 지원하지 않아요. 크롬이나 사파리로 다시 열어 주세요.</p>
+    <div class="row"><button type="button" id="openExt">다른 브라우저로 열기</button><button type="button" class="ghost" id="copyUrl">주소 복사</button></div>
+  </div>
   <header>
     <h1>사진 PPT 만들기</h1>
     <p class="lead">사진을 여러 장 넣고 사진마다 설명을 적으면, 사진과 설명이 들어간 A4 PPT로 묶어 드려요. 로그인 없이 바로 쓰고, 사진은 이 브라우저 안에서만 처리돼요.</p>
@@ -143,6 +153,35 @@ h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
   const st = { ori: "land", cols: 2, per: 4, fit: "contain", cap: "desc", size: 12 };
   let photos = [];    // {id, name, time, url, w, h, desc}
   let uid = 0, focusId = null;
+
+  /* ---------- 앱 안의 브라우저(카카오톡 등) ----------
+     카카오톡·인스타그램 등 앱 안 브라우저는 파일 저장을 못 해요. 카카오톡이면 기본 브라우저로 바로 넘기고, 나머지는 안내를 띄워요. */
+  const UA = navigator.userAgent || "";
+  const IS_KAKAO = /KAKAOTALK/i.test(UA);
+  const IN_APP = IS_KAKAO || /Instagram|FBAN|FBAV|NAVER\(inapp|Line\/|DaumApps|BAND\/|everytimeApp|whale\/.*inapp/i.test(UA);
+  const isIOS = /iPhone|iPad|iPod/i.test(UA);
+  function openExternal(){
+    if(IS_KAKAO){ location.href = "kakaotalk://web/openExternal?url=" + encodeURIComponent(location.href); return; }
+    if(!isIOS && /Android/i.test(UA)){ location.href = "intent://" + location.href.replace(/^https?:\/\//,"") + "#Intent;scheme=https;package=com.android.chrome;end"; return; }
+    showInApp(true);
+  }
+  function showInApp(manual){
+    $("inapp").hidden = false;
+    if(manual) $("inappP").textContent = isIOS
+      ? "오른쪽 아래(또는 위) ⋯ 메뉴에서 ‘Safari로 열기’ 또는 ‘다른 브라우저로 열기’를 눌러 주세요. 안 되면 ‘주소 복사’ 후 사파리에 붙여 넣어 주세요."
+      : "오른쪽 위 ⋮ 메뉴에서 ‘다른 브라우저로 열기’를 눌러 주세요. 안 되면 ‘주소 복사’ 후 크롬에 붙여 넣어 주세요.";
+  }
+  if(IN_APP && !window.claude){
+    showInApp(false);
+    if(IS_KAKAO){ try { sessionStorage.getItem("minqExt") || (sessionStorage.setItem("minqExt","1"), openExternal()); } catch(_){ openExternal(); } }
+  }
+  $("openExt").onclick = openExternal;
+  $("copyUrl").onclick = async () => {
+    const b = $("copyUrl");
+    try { await navigator.clipboard.writeText(location.href); b.textContent = "복사했어요"; }
+    catch(_){ b.textContent = location.href; }
+    setTimeout(()=>{ b.textContent = "주소 복사"; }, 2500);
+  };
 
   /* ---------- 설정 ---------- */
   function seg(el, values, cur, label, onPick){
@@ -315,6 +354,7 @@ h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
     try { if(window.claude && window.claude.use) dl = await window.claude.use("downloads"); } catch(_){}
     if(dl){ await dl.save({ filename, data: blob }); return; }
     if(window.claude) throw { code:"unavailable" };
+    if(IN_APP){ showInApp(true); window.scrollTo({top:0,behavior:"smooth"}); throw { code:"inapp" }; }
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.append(a); a.click();
     setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 4000);
   }
@@ -359,7 +399,7 @@ h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
       say("m2", `저장했어요 · ${name}`);
     } catch(e){
       const c = e && e.code;
-      say("m2", c==="declined" ? "저장을 취소했어요." : c==="unavailable"||c==="not_granted" ? "이 화면에서는 파일 저장이 막혀 있어요. 링크를 크롬이나 사파리에서 직접 열어 주세요." : "만들지 못했어요: " + ((e&&e.message)||c||e), c!=="declined");
+      say("m2", c==="inapp" ? "앱 안의 브라우저라 저장할 수 없어요. 맨 위 안내대로 크롬이나 사파리로 열어 주세요." : c==="declined" ? "저장을 취소했어요." : c==="unavailable"||c==="not_granted" ? "이 화면에서는 파일 저장이 막혀 있어요. 링크를 크롬이나 사파리에서 직접 열어 주세요." : "만들지 못했어요: " + ((e&&e.message)||c||e), c!=="declined");
     } finally { $("go").disabled = !photos.length; }
   };
 
